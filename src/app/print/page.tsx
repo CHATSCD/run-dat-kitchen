@@ -1,0 +1,451 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import Script from 'next/script';
+import { Printer, Settings, FileDown, QrCode } from 'lucide-react';
+import Header from '@/components/Header';
+import BottomNav from '@/components/BottomNav';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import QRCodeCanvas from '@/components/QRCodeCanvas';
+import { CATEGORIES } from '@/data/inventory';
+import {
+  getEnabledForSheets,
+  getBubbleConfig,
+  saveBubbleConfig,
+  getTodayStr,
+  getLocationName,
+} from '@/lib/storage';
+import { InventoryItem, BubbleConfig, WASTE_REASONS } from '@/types';
+
+export default function PrintPage() {
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [config, setConfig] = useState<BubbleConfig>({ increment: 1, maxQuantity: 30 });
+  const [formType, setFormType] = useState<'production' | 'waste'>('production');
+  const [showConfig, setShowConfig] = useState(false);
+  const [employeeName, setEmployeeName] = useState('');
+  const [shift, setShift] = useState<'AM' | 'PM' | 'Night'>('AM');
+  const [locationName, setLocationName] = useState('');
+  const [printMode, setPrintMode] = useState<'sheet' | 'qr'>('sheet');
+
+  useEffect(() => {
+    setItems(getEnabledForSheets());
+    setConfig(getBubbleConfig());
+    setLocationName(getLocationName());
+  }, []);
+
+  const handleConfigChange = (field: keyof BubbleConfig, value: number) => {
+    const updated = { ...config, [field]: Math.max(1, value) };
+    setConfig(updated);
+    saveBubbleConfig(updated);
+  };
+
+  const handlePrint = () => {
+    setPrintMode('sheet');
+    setTimeout(() => window.print(), 50);
+  };
+
+  const handlePrintQRRef = () => {
+    setPrintMode('qr');
+    setTimeout(() => { window.print(); setPrintMode('sheet'); }, 50);
+  };
+
+  const handleDownloadPDF = async () => {
+    const element = document.getElementById('bubble-sheet-section') as HTMLElement;
+    if (!element) return;
+    
+    const html2pdf = (window as any).html2pdf;
+    if (!html2pdf) return;
+    const opt = {
+      margin: 0.25,
+      filename: `${formType}-${getTodayStr()}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+    };
+    await html2pdf().set(opt).from(element).save();
+  };
+
+  const handleDownloadQRPDF = async () => {
+    const element = document.getElementById('qr-ref-section') as HTMLElement;
+    if (!element) return;
+    
+    const html2pdf = (window as any).html2pdf;
+    if (!html2pdf) return;
+    const opt = {
+      margin: 0.25,
+      filename: `qr-reference-${getTodayStr()}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' },
+    };
+    await html2pdf().set(opt).from(element).save();
+  };
+
+  const categories = CATEGORIES.filter((cat) =>
+    items.some((item) => item.category === cat)
+  );
+
+  const bubbleCount = Math.ceil(config.maxQuantity / config.increment);
+  const bubbleValues = Array.from({ length: bubbleCount }, (_, i) => (i + 1) * config.increment);
+
+  const todayFormatted = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-16">
+      <Script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" strategy="lazyOnload" />
+      <Header />
+      <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        <h2 className="text-lg font-bold">Print Forms</h2>
+
+        {/* Form Type Selector */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setFormType('production')}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+              formType === 'production'
+                ? 'bg-green-600 text-white border-green-600'
+                : 'bg-white text-gray-700 border-gray-200'
+            }`}
+          >
+            Production Form
+          </button>
+          <button
+            onClick={() => setFormType('waste')}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+              formType === 'waste'
+                ? 'bg-red-600 text-white border-red-600'
+                : 'bg-white text-gray-700 border-gray-200'
+            }`}
+          >
+            Waste Form
+          </button>
+        </div>
+
+        {/* Employee Info */}
+        <Card className="border-2 border-blue-200">
+          <CardContent className="p-3 space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Employee Name</label>
+            <Input
+              type="text"
+              placeholder="Enter employee name"
+              value={employeeName}
+              onChange={(e) => setEmployeeName(e.target.value)}
+            />
+            <label className="text-xs font-medium text-muted-foreground">Shift</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShift('AM')}
+                className={`flex-1 py-2 rounded text-sm font-medium border transition-colors ${
+                  shift === 'AM'
+                    ? 'bg-keiths-red text-white border-keiths-red'
+                    : 'bg-white text-gray-700 border-gray-200'
+                }`}
+              >
+                AM
+              </button>
+              <button
+                onClick={() => setShift('PM')}
+                className={`flex-1 py-2 rounded text-sm font-medium border transition-colors ${
+                  shift === 'PM'
+                    ? 'bg-keiths-red text-white border-keiths-red'
+                    : 'bg-white text-gray-700 border-gray-200'
+                }`}
+              >
+                PM
+              </button>
+              <button
+                onClick={() => setShift('Night')}
+                className={`flex-1 py-2 rounded text-sm font-medium border transition-colors ${
+                  shift === 'Night'
+                    ? 'bg-keiths-red text-white border-keiths-red'
+                    : 'bg-white text-gray-700 border-gray-200'
+                }`}
+              >
+                Night
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Config */}
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setShowConfig(!showConfig)}
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          Bubble Settings
+        </Button>
+
+        {showConfig && (
+          <Card className="border-2 border-blue-200">
+            <CardContent className="p-3 space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Bubble Increment</label>
+                <Input
+                  type="number"
+                  value={config.increment}
+                  onChange={(e) => handleConfigChange('increment', parseInt(e.target.value) || 1)}
+                  min={1}
+                  className="mt-1"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Each bubble represents this many units (e.g., 1, 5, 10)
+                </p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Max Quantity</label>
+                <Input
+                  type="number"
+                  value={config.maxQuantity}
+                  onChange={(e) => handleConfigChange('maxQuantity', parseInt(e.target.value) || 10)}
+                  min={1}
+                  className="mt-1"
+                />
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Maximum quantity shown on each row
+                </p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Preview: {bubbleCount} bubbles per row ({bubbleValues.slice(0, 5).join(', ')}
+                {bubbleCount > 5 ? `, ...${bubbleValues[bubbleCount - 1]}` : ''})
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Preview */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Preview</CardTitle>
+          </CardHeader>
+          <CardContent className="text-xs text-muted-foreground">
+            <p>{items.length} enabled items across {categories.length} categories</p>
+            <p>{bubbleCount} bubbles per row, increment of {config.increment}</p>
+            {formType === 'waste' && <p>Includes REASON column with code legend</p>}
+            {locationName && <p className="font-semibold text-purple-700 mt-1">Location: {locationName}</p>}
+          </CardContent>
+        </Card>
+
+        {items.length === 0 && (
+          <Card className="border-2 border-yellow-200 bg-yellow-50">
+            <CardContent className="p-3">
+              <p className="text-sm font-medium text-yellow-900">No Items Enabled!</p>
+              <p className="text-xs text-yellow-700 mt-1">
+                Go to Store Items to enable the items available at your location. Only enabled items will appear on your sheets.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Print / Download Buttons */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Production / Waste Sheet</p>
+          <div className="flex gap-2">
+            <Button
+              onClick={handlePrint}
+              className="flex-1 bg-keiths-red hover:bg-keiths-darkRed h-12 text-base"
+            >
+              <Printer className="h-5 w-5 mr-2" />
+              Print Form
+            </Button>
+            <Button
+              onClick={handleDownloadPDF}
+              variant="outline"
+              className="flex-1 h-12 text-base border-keiths-red text-keiths-red hover:bg-red-50"
+            >
+              <FileDown className="h-5 w-5 mr-2" />
+              Download PDF
+            </Button>
+          </div>
+
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-1">QR Reference Sheet</p>
+          <p className="text-xs text-gray-500">Print once — laminate and keep at the station. Scan these QR codes to record quantities.</p>
+          <div className="flex gap-2">
+            <Button
+              onClick={handlePrintQRRef}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 h-12 text-base"
+            >
+              <QrCode className="h-5 w-5 mr-2" />
+              Print QR Ref
+            </Button>
+            <Button
+              onClick={handleDownloadQRPDF}
+              variant="outline"
+              className="flex-1 h-12 text-base border-blue-600 text-blue-600 hover:bg-blue-50"
+            >
+              <FileDown className="h-5 w-5 mr-2" />
+              Download QR PDF
+            </Button>
+          </div>
+        </div>
+      </main>
+
+      {/* ====== PRINTABLE BUBBLE SHEET ====== */}
+      <div className={printMode === 'qr' ? 'no-print' : 'print-only'} id="bubble-sheet-section">
+        <div className="text-center mb-3 border-b pb-2">
+          <div className="flex justify-between items-start">
+            <div className="flex-1" />
+            <div className="text-center flex-1">
+              <h1 className="text-lg font-bold">Keith&apos;s Superstores</h1>
+              <p className="text-xs text-gray-500 italic">&ldquo;The Fastest And Friendliest&rdquo;</p>
+              {locationName && (
+                <p className="text-sm font-semibold text-purple-700">{locationName}</p>
+              )}
+              <h2 className="text-base font-semibold mt-1">
+                {formType === 'production' ? 'PRODUCTION SHEET' : 'WASTE SHEET'}
+              </h2>
+              <p className="text-sm">{todayFormatted}</p>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <QRCodeCanvas
+                data={JSON.stringify({
+                  type: formType,
+                  employeeName: employeeName,
+                  shift: shift,
+                  date: getTodayStr(),
+                  items: items.length,
+                  increment: config.increment,
+                  maxQty: config.maxQuantity,
+                })}
+                size={64}
+              />
+            </div>
+          </div>
+          <div className="flex gap-8 mt-2 text-sm">
+            <div className="flex-1 border-b border-black pb-1 text-left">
+              <strong>Employee:</strong> {employeeName || '_________________________'}
+            </div>
+            <div className="border-b border-black pb-1">
+              <strong>Shift:</strong> {shift || 'AM / PM / ON'}
+            </div>
+          </div>
+        </div>
+
+        {/* Waste Reason Legend */}
+        {formType === 'waste' && (
+          <div className="mb-2 text-[9px] border rounded p-1.5">
+            <strong>REASON CODES:</strong>{' '}
+            {WASTE_REASONS.map((r) => (
+              <span key={r.code} className="mr-2">
+                <strong>{r.short}</strong>={r.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Bubble Sheet Tables — each row has its own item QR code */}
+        {categories.map((cat) => {
+          const catItems = items.filter((i) => i.category === cat);
+          if (catItems.length === 0) return null;
+
+          return (
+            <div key={cat} className="mb-3 avoid-break">
+              <h3 className="text-xs font-bold bg-gray-100 px-1 py-0.5 border-b">{cat}</h3>
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-center py-0.5 px-0.5 border-b w-[44px]">QR</th>
+                    <th className="text-left py-0.5 px-1 border-b w-[110px]">Item</th>
+                    {bubbleValues.map((v) => (
+                      <th key={v} className="text-center py-0.5 px-0 border-b w-[18px]">
+                        {v}
+                      </th>
+                    ))}
+                    {formType === 'waste' && (
+                      <th className="text-center py-0.5 px-1 border-b w-[40px]">REASON</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {catItems.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-100">
+                      <td className="py-0.5 px-0.5 text-center align-middle">
+                        <QRCodeCanvas
+                          data={JSON.stringify({ id: item.id, name: item.name, type: 'item' })}
+                          size={40}
+                        />
+                      </td>
+                      <td className="py-1 px-1 text-[10px] leading-tight">{item.name}</td>
+                      {bubbleValues.map((v) => (
+                        <td key={v} className="text-center py-1 px-0">
+                          <span className="inline-block w-3.5 h-3.5 rounded-full border border-gray-400" />
+                        </td>
+                      ))}
+                      {formType === 'waste' && (
+                        <td className="text-center py-1 px-1">
+                          <span className="inline-block w-full border-b border-gray-400 text-[9px]">&nbsp;</span>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+
+        <div className="mt-4 text-[9px] text-gray-500 text-center">
+          Fill in bubbles to indicate quantity. {formType === 'waste' && 'Write reason code in REASON column.'}
+        </div>
+
+      </div>
+
+      {/* ====== QR REFERENCE SECTION (separate top-level div) ====== */}
+      <div
+        id="qr-ref-section"
+        className={printMode === 'qr' ? 'print-only' : 'no-print'}
+      >
+        <div className="text-center mb-4 border-b pb-2">
+          <h1 className="text-base font-bold">Keith&apos;s Superstores — QR Reference Sheet</h1>
+          <p className="text-[10px] text-gray-500">
+            Scan these QR codes in the app when recording production/waste quantities.
+            Print once — laminate and keep at the station.
+          </p>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '12px',
+          }}
+        >
+          {items.map((item) => (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                border: '1px solid #ccc',
+                borderRadius: '6px',
+                padding: '8px 4px',
+                pageBreakInside: 'avoid',
+              }}
+            >
+              <QRCodeCanvas
+                data={JSON.stringify({ id: item.id, name: item.name, type: 'item' })}
+                size={80}
+              />
+              <p style={{ fontSize: '9px', textAlign: 'center', marginTop: '4px', fontWeight: 600, lineHeight: 1.2 }}>
+                {item.name}
+              </p>
+              <p style={{ fontSize: '8px', color: '#888', marginTop: '2px' }}>
+                {item.category}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <BottomNav />
+    </div>
+  );
+}

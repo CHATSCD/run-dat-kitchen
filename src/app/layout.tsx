@@ -1,0 +1,53 @@
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+import { StoreProvider } from '@/context/StoreContext';
+
+export const metadata: Metadata = {
+  title: "Run DAT Kitchen",
+  description: 'Kitchen inventory, production tracking, and waste management',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/logo.svg',
+    apple: '/icon-192.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: "Run DAT",
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#DC2626',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+      </head>
+      <body className="font-sans antialiased">
+        <StoreProvider>
+        {children}
+        </StoreProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js');
+                });
+              }
+            `,
+          }}
+        />
+      </body>
+    </html>
+  );
+}
