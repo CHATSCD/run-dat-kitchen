@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { StoreProvider } from '@/context/StoreContext';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: "Run DAT Kitchen",
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StoreProvider>
         {children}
         </StoreProvider>
+        <Analytics />
         <script
           dangerouslySetInnerHTML={{
             __html: `
